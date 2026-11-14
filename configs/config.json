@@ -1,0 +1,48 @@
+{
+  "project": "Human Activity Recognition for Factory Automation",
+  "group_id": "EIC-16",
+  "seed": 42,
+  "paths": {
+    "data_dir": "data",
+    "checkpoints": "checkpoints",
+    "results": "results",
+    "model": "model"
+  },
+  "split": {
+    "val_size": 0.2,
+    "note": "GroupShuffleSplit on subject: no person appears in both train and validation"
+  },
+  "deployment": {
+    "low_confidence": 0.7,
+    "max_batch_rows": 1000,
+    "live_samples_per_class": 100
+  },
+  "random_forest": {
+    "n_estimators": 300
+  },
+  "dense": {
+    "units": [512, 256, 128],
+    "dropout": [0.4, 0.4, 0.3],
+    "learning_rate": 0.001,
+    "batch_size": 64,
+    "epochs": 200,
+    "early_stopping_patience": 15,
+    "lr_factor": 0.5,
+    "lr_patience": 5,
+    "min_lr": 1e-05
+  },
+  "cnn": {
+    "filters": [32, 64, 128],
+    "kernels": [7, 5, 3],
+    "pool_size": 2,
+    "dense_units": 128,
+    "dropout": 0.4,
+    "learning_rate": 0.001,
+    "batch_size": 64,
+    "epochs": 200,
+    "early_stopping_patience": 15,
+    "lr_factor": 0.5,
+    "lr_patience": 5,
+    "min_lr": 1e-05
+  }
+}
