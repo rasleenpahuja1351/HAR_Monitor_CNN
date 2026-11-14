@@ -858,7 +858,6 @@ TEMPLATE = r"""<!doctype html>
       </div>
       <div class="actions">
         <a class="btn primary" href="#live">Open live prediction</a>
-        <a class="btn ghost" href="/api/docs">Explore the API</a>
       </div>
       <div class="stats">
         <div class="stat"><p class="lab">Test accuracy</p><p class="val g" data-k="acc">{{ACC}}</p><p class="note" data-k="acc_s">{{ACC_S}}</p></div>
