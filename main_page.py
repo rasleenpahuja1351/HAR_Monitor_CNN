@@ -246,7 +246,13 @@ h3 { font: 400 26px/1.15 var(--serif); margin: 0; }
 .acc b { font: 400 30px var(--serif); }
 .models tr.best .track i { background: var(--g); } .models tr.best .acc b { color: var(--g); }
 .models tr.mid .track i { background: var(--g2); }
-.models .num { font: 15px var(--mono); }
+.models .f1 { white-space: nowrap; }
+.f1v { display: inline-flex; align-items: center; gap: 10px; font: 500 15px var(--mono); color: var(--ink); }
+.f1v i { display: inline-block; width: 56px; height: 6px; border-radius: 3px; background: var(--soft); position: relative; overflow: hidden; }
+.f1v i b { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--g3); }
+.models tr.best .f1v { color: var(--g); }
+.models tr.best .f1v i b { background: var(--g); }
+.models tr.mid .f1v i b { background: var(--g2); }
 .curves { margin-top: 40px; }
 .curves svg { width: 100%; height: auto; display: block; margin-top: 12px; }
 .ch { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
@@ -573,7 +579,7 @@ SCRIPT = r"""/* Editorial chart helpers (plain SVG/HTML, no libraries). */
     ].filter(Boolean);
     $('#models').innerHTML = rows.map((r) => `<tr class="${r.cls}"><td>${r.name}</td>
       <td><div class="acc"><span class="track"><i style="width:${Math.max(3, (r.acc * 100 - 85) / 10 * 100)}%"></i></span><b>${pct(r.acc)}</b></div></td>
-      <td class="num">${r.f1.toFixed(3)}</td><td class="note">${r.size}</td>
+      <td class="f1"><span class="f1v" title="Macro F1 = average F1 over the 6 activities">${r.f1.toFixed(3)}<i><b style="width:${Math.max(4, (r.f1 - 0.85) / 0.10 * 100)}%"></b></i></span></td><td class="note">${r.size}</td>
       <td><span class="chip ${r.cls === 'best' ? 'solid' : ''}">${r.tag}</span></td></tr>`).join('');
 
     if (k.history) {
