@@ -1,0 +1,5 @@
+# Runtime dependencies of the deployed web API (installed by Vercel).
+# Keep this list small: training libraries are in requirements-train.txt.
+fastapi==0.162.0
+pydantic>=2.7,<3
+numpy==2.5.3

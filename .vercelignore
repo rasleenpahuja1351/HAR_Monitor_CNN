@@ -1,0 +1,11 @@
+# Not needed by the website: keeps uploads small and fast
+data/
+checkpoints/
+results/
+report/
+tests/
+*.csv
+.venv/
+venv/
+__pycache__/
+.pytest_cache/

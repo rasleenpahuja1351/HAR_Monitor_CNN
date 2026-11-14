@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.vercel/
+.DS_Store
+# dataset files are large: download them into data/ (see data/README.md)
+data/*.csv
