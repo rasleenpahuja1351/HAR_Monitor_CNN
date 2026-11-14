@@ -7,8 +7,11 @@ FastAPI serves this page at  /  (see app.py). Python builds:
   * the headline numbers (test accuracy, test windows, best validation, features),
     read from model/metrics.json so they always match the deployed model
 The live prediction section on the same page is then fed by /api/stream every 2.56 s,
-which is answered by the same Python model. Styles and scripts come from public/css
-and public/js.
+which is answered by the same Python model.
+
+Everything the browser needs (markup, styles and the small browser script that keeps
+the live section updating) is stored in this Python file and sent by FastAPI, so the
+website has no separate HTML, CSS or JavaScript files.
 """
 from __future__ import annotations
 
@@ -84,11 +87,12 @@ def headline_numbers(m: dict) -> dict:
 
 
 def render_home(metrics: dict, threshold: float, group: str) -> str:
-    page = TEMPLATE.replace("{{EXTRA_CSS}}", PIPELINE_CSS)
-    page = page.replace("{{PIPELINE}}", pipeline_section(metrics, threshold))
+    page = TEMPLATE.replace("{{PIPELINE}}", pipeline_section(metrics, threshold))
     for key, value in headline_numbers(metrics).items():
         page = page.replace("{{" + key + "}}", e(value))
-    return page.replace("{{GROUP}}", e(group))
+    page = page.replace("{{GROUP}}", e(group))
+    # styles and browser script are inserted last so their text is never altered
+    return page.replace("{{STYLE}}", STYLE).replace("{{SCRIPT}}", SCRIPT)
 
 
 def create_router(get_metrics: Callable, threshold: float = 0.7, group: str = "EIC-16") -> APIRouter:
@@ -107,9 +111,94 @@ def create_router(get_metrics: Callable, threshold: float = 0.7, group: str = "E
 
 
 # --------------------------------------------------------------------------- #
-# Page template (markup) and the pipeline styles
+# Page markup, styles and browser script (all kept in this Python file)
 # --------------------------------------------------------------------------- #
-PIPELINE_CSS = r"""/* pipeline */
+STYLE = r"""/* HAR Monitor · editorial theme (matches the Figma redesign) */
+:root {
+  --paper: #F6F4EF; --card: #FFFFFF; --ink: #111111; --body: #3A3833; --muted: #6B6862;
+  --rule: #DDD8CE; --soft: #ECE8DF; --g: #1D3F04; --g2: #65705E; --g3: #92998E; --gt: #E7ECDF; --gl: #C9D2BE;
+  --serif: "Instrument Serif", "Times New Roman", serif;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 76px; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+code { font: 13px var(--mono); background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+hr { border: 0; border-top: 1px solid var(--rule); margin: 4px 0; }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 0 40px; }
+.g { color: var(--g); }
+
+/* type */
+.lab { font: 400 11px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.display { font: 400 clamp(56px, 8.6vw, 112px)/.92 var(--serif); letter-spacing: -.015em; margin: 22px 0 28px; }
+.display.sm { font-size: clamp(52px, 7vw, 96px); margin: 18px 0 0; }
+.display em, h2 em, .pred em { font-style: italic; color: var(--g); }
+h2 { font: 400 clamp(36px, 4vw, 50px)/1.02 var(--serif); margin: 16px 0 0; }
+h3 { font: 400 26px/1.15 var(--serif); margin: 0; }
+.lede { font-size: 18px; color: var(--body); max-width: 640px; margin: 0 0 24px; }
+.body { color: var(--body); max-width: 520px; margin: 0; }
+.note { font-size: 13px; color: var(--muted); margin: 0; line-height: 1.5; }
+.mono { font: 13px var(--mono); color: var(--muted); margin: 0; }
+
+/* nav */
+.nav { position: sticky; top: 0; z-index: 20; background: rgba(246, 244, 239, .92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--g); }
+.nav-in { display: flex; align-items: center; justify-content: space-between; gap: 24px; height: 68px; }
+.brand { font: 400 26px var(--serif); text-decoration: none; white-space: nowrap; }
+.links { display: flex; gap: 26px; overflow-x: auto; scrollbar-width: none; }
+.links::-webkit-scrollbar { display: none; }
+.links a { font-size: 14px; color: var(--muted); text-decoration: none; padding: 6px 0; border-bottom: 2px solid transparent; white-space: nowrap; }
+.links a:hover { color: var(--ink); }
+.links a.on { color: var(--g); font-weight: 500; border-bottom-color: var(--g); }
+.status { display: flex; gap: 8px; }
+
+/* chips & buttons */
+.chip { display: inline-flex; align-items: center; gap: 7px; font: 12px var(--mono); padding: 6px 12px; border: 1px solid var(--rule); border-radius: 999px; background: var(--card); white-space: nowrap; }
+.chip.g { border-color: var(--g); }
+.chip.solid { background: var(--g); border-color: var(--g); color: #fff; }
+.chip.ink { background: var(--ink); border-color: var(--ink); color: #fff; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--g3); display: inline-block; }
+.dot.ok { background: #3E8E14; } .dot.bad { background: #B42318; }
+.dot.ink { background: var(--ink); width: 6px; height: 6px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; font: 500 14px var(--sans); padding: 12px 22px; border-radius: 6px; border: 1px solid var(--g); cursor: pointer; text-decoration: none; transition: background .15s, color .15s; }
+.btn.primary { background: var(--g); color: #fff; }
+.btn.primary:hover { background: #142D02; }
+.btn.ghost { background: transparent; color: var(--g); }
+.btn.ghost:hover { background: var(--gt); }
+.btn:focus-visible, .seg button:focus-visible, .links a:focus-visible { outline: 2px solid var(--g); outline-offset: 2px; }
+
+/* sections */
+.sec { padding: 96px 0; border-top: 1px solid var(--rule); }
+.sec.hero { border-top: 0; padding-top: 84px; }
+.sec.white { background: var(--card); }
+.head { display: flex; justify-content: space-between; align-items: flex-end; gap: 48px; margin-bottom: 40px; }
+.two { display: grid; grid-template-columns: 1fr 1.15fr; gap: 64px; align-items: start; }
+.card { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 28px; }
+
+/* hero */
+.pipe { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 24px; }
+.arr { color: var(--g); }
+.actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 56px; }
+.stat { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 24px; }
+.stat .val { font: 400 64px/1 var(--serif); margin: 12px 0 10px; }
+
+/* motivation */
+.copy { display: flex; flex-direction: column; gap: 24px; }
+.dropcap { color: var(--body); margin: 0; }
+.dc { float: left; font: 400 96px/.8 var(--serif); color: var(--g); margin: 6px 12px 0 0; }
+.facts { display: flex; gap: 40px; }
+.facts b { display: block; font: 400 36px/1.1 var(--serif); }
+.fig { margin: 0; display: flex; flex-direction: column; gap: 14px; }
+.fig svg { width: 100%; height: auto; }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; font: 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.ln { width: 16px; height: 3px; display: inline-block; }
+.ln.g, .sq.g { background: var(--g); } .ln.m, .sq.m { background: var(--g3); } .ln.l, .sq.l { background: var(--gl); }
+.sq { width: 12px; height: 12px; display: inline-block; }
+
+/* pipeline */
 .lane { border: 1px solid var(--rule); border-radius: 8px; padding: 28px; background: var(--paper); }
 .lane + .lane { margin-top: 20px; }
 .lane.off { background: var(--card); border-style: dashed; }
@@ -145,7 +234,128 @@ PIPELINE_CSS = r"""/* pipeline */
 .br.no { background: var(--soft); border-left: 3px solid var(--ink); }
 .br.no .lab { color: var(--ink); }
 
+/* tables */
+.tbl-wrap { overflow-x: auto; }
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th { font: 400 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); text-align: left; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--ink); }
+.tbl td { padding: 20px 12px 20px 0; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+.models td:first-child { font: 400 30px var(--serif); white-space: nowrap; }
+.acc { display: flex; align-items: center; gap: 16px; }
+.track { flex: 0 0 260px; height: 10px; border-radius: 5px; background: var(--soft); overflow: hidden; }
+.track i { display: block; height: 100%; border-radius: 5px; background: var(--g3); }
+.acc b { font: 400 30px var(--serif); }
+.models tr.best .track i { background: var(--g); } .models tr.best .acc b { color: var(--g); }
+.models tr.mid .track i { background: var(--g2); }
+.models .num { font: 15px var(--mono); }
+.curves { margin-top: 40px; }
+.curves svg { width: 100%; height: auto; display: block; margin-top: 12px; }
+.ch { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+/* confusion */
+.cm { display: grid; grid-template-columns: 96px repeat(6, minmax(44px, 72px)); gap: 4px; margin: 28px 0 12px; }
+.cm .h { font: 11px var(--mono); color: var(--muted); text-align: center; text-transform: uppercase; padding-bottom: 4px; }
+.cm .rl { font-size: 13px; display: flex; align-items: center; }
+.cm .c { height: 56px; border-radius: 4px; border: 1px solid var(--rule); display: flex; align-items: center; justify-content: center; font: 13px var(--mono); }
+.cm .c.d { background: var(--g); border-color: var(--g); color: #fff; font-weight: 500; }
+.cm .c.z { color: #B5B0A6; }
+.cm .c.w { background: var(--ink); border-color: var(--ink); color: #fff; }
+.insights { display: flex; flex-direction: column; gap: 24px; padding-top: 34px; }
+.callout { background: var(--ink); color: #D9D5CC; border-radius: 8px; padding: 28px; }
+.callout .lab { color: #A8A49C; }
+.callout .big { font: 400 80px/1 var(--serif); color: #fff; margin: 10px 0; }
+.callout p:last-child { margin: 0; font-size: 15px; }
+
+/* bars */
+.bars { display: flex; flex-direction: column; gap: 12px; }
+.bar { display: grid; grid-template-columns: 120px 1fr 56px; align-items: center; gap: 16px; font-size: 14px; }
+.bar .t { height: 8px; border-radius: 4px; background: var(--soft); overflow: hidden; }
+.bar .t i { display: block; height: 100%; border-radius: 4px; background: var(--g); transition: width .4s ease; }
+.bar .t i.m { background: var(--g3); }
+.bar b { font: 400 13px var(--mono); text-align: right; }
+.dist { margin: 14px 0 16px; }
+.dist .bar { grid-template-columns: 110px 1fr 56px; }
+.dist .bar .t { height: 14px; border-radius: 2px; background: transparent; }
+.dist .bar .t i { border-radius: 2px; }
+
+/* live */
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 32px; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: var(--card); }
+.seg button { font: 13px var(--mono); border: 0; background: none; padding: 12px 14px; cursor: pointer; color: var(--ink); }
+.seg button.on { background: var(--gt); color: var(--g); }
+.live-grid { display: grid; grid-template-columns: 1.65fr 1fr; gap: 24px; }
+.cur { display: flex; flex-direction: column; gap: 18px; padding: 36px; }
+.cur-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+.pred { font: 400 clamp(44px, 5vw, 72px)/.95 var(--serif); margin: 0; }
+.conf { display: flex; flex-direction: column; align-items: flex-end; }
+.conf span:first-child { font: 400 clamp(44px, 5vw, 72px)/.95 var(--serif); }
+.probs .bar { grid-template-columns: 170px 1fr 48px; color: var(--muted); }
+.probs .bar.top { color: var(--ink); font-weight: 500; }
+.probs .bar .t i { background: var(--g3); }
+.probs .bar.top .t i { background: var(--g); }
+.truth { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 14px; }
+.truth b { font-weight: 500; }
+.resp { background: var(--gt); border-left: 3px solid var(--g); padding: 18px 20px; }
+.resp .lab { color: var(--g); }
+.resp .r { font: 400 28px/1.2 var(--serif); margin: 8px 0 0; }
+.resp.warn { background: var(--soft); border-left-color: var(--ink); }
+.resp.warn .lab { color: var(--ink); }
+.side { display: flex; flex-direction: column; gap: 24px; }
+.side .card { display: flex; flex-direction: column; gap: 14px; }
+.sval { margin: 0; font: 400 64px/1 var(--serif); }
+.sval em { font-size: 22px; color: var(--muted); }
+#spark { width: 100%; height: 64px; }
+.gate { display: flex; gap: 40px; }
+.gate b { display: block; font: 400 48px/1 var(--serif); font-weight: 400; }
+.timeline { margin-top: 48px; padding: 32px; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); }
+.strip { display: grid; grid-template-columns: repeat(60, 1fr); gap: 4px; align-items: end; height: 76px; margin-top: 20px; }
+.strip > div { position: relative; border-radius: 2px; background: var(--gl); height: 32px; }
+.strip > div.dy { background: var(--g); height: 56px; }
+.strip > div.empty { background: var(--soft); height: 32px; }
+.strip > div.x::after { content: ""; position: absolute; left: 50%; top: -10px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--ink); }
+.strip > div.lc { opacity: .5; }
+.axis { display: flex; justify-content: space-between; margin-top: 10px; }
+.log-h { font-size: 36px; margin: 56px 0 16px; }
+.log td { padding: 14px 12px 14px 0; font-size: 14px; }
+.log td:nth-child(1), .log td:nth-child(2), .log td:nth-child(5) { font: 13px var(--mono); }
+.log td:nth-child(1) { color: var(--muted); }
+.log td:nth-child(3) { font-weight: 500; }
+.log td.dim { color: var(--muted); }
+.log td.hi { font-weight: 500; }
+.log + .note, .tbl-wrap + .note { margin-top: 12px; }
+
+/* data */
+.split { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 48px; }
+.sp { background: var(--paper); display: flex; flex-direction: column; gap: 8px; }
+.sp-v { font: 400 72px/1 var(--serif); margin: 0; }
+.sp-v em { font-size: 28px; }
+.sp.dark { background: var(--g); border-color: var(--g); color: #fff; }
+.sp.dark .lab, .sp.dark .mono { color: var(--gl); }
+
+/* batch */
+.up-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; }
+.drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; min-height: 260px; padding: 28px; border: 1.5px dashed var(--g3); border-radius: 8px; background: var(--paper); cursor: pointer; color: var(--g); transition: background .15s, border-color .15s; }
+.drop:hover, .drop.over { background: var(--gt); border-color: var(--g); }
+.drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.drop-t { font: 400 26px var(--serif); color: var(--ink); }
+.res { display: flex; flex-direction: column; gap: 18px; }
+.res .rstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.res .rstats b { display: block; font: 400 40px/1.1 var(--serif); }
+.prog { height: 8px; border-radius: 4px; background: var(--soft); overflow: hidden; }
+.prog i { display: block; height: 100%; width: 0; background: var(--g); transition: width .2s; }
+.err { color: #B42318; font-size: 14px; }
+
+/* footer */
+.foot { background: var(--g); color: #fff; padding: 36px 0; }
+.foot-in { display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; }
+.foot .brand { font-size: 30px; }
+.foot .lab { color: var(--gl); }
+
+/* responsive */
 @media (max-width: 1100px) {
+  .hide-md { display: none; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .two, .live-grid, .up-grid { grid-template-columns: 1fr; }
+  .insights { padding-top: 0; }
   .flow { grid-template-columns: repeat(3, 1fr); row-gap: 20px; }
   .flow .step:nth-child(3n+1)::before, .flow .step:nth-child(3n+1)::after { display: none; }
   .decide { grid-template-columns: 1fr; }
@@ -154,12 +364,448 @@ PIPELINE_CSS = r"""/* pipeline */
   .gate-q::before, .gate-q::after, .branches::after { display: none; }
 }
 @media (max-width: 760px) {
+  .wrap { padding: 0 16px; }
+  .nav-in { height: auto; padding: 12px 16px; flex-wrap: wrap; gap: 8px 16px; }
+  .links { order: 3; width: 100%; gap: 20px; }
+  .status { display: none; }
+  .sec { padding: 64px 0; }
+  .head { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .stats { grid-template-columns: 1fr; }
+  .split { grid-template-columns: 1fr; }
+  .track { flex-basis: 120px; }
+  .models td:first-child, .acc b { font-size: 22px; }
+  .cm { grid-template-columns: 70px repeat(6, 1fr); }
+  .cm .c { height: 44px; font-size: 11px; }
+  .bar, .probs .bar { grid-template-columns: 96px 1fr 44px; gap: 10px; font-size: 13px; }
+  .strip { grid-template-columns: repeat(30, 1fr); }
+  .strip > div:nth-child(-n+30) { display: none; }
+  .cur { padding: 24px; }
+  .timeline { padding: 20px; }
+  .facts { gap: 24px; }
   .lane { padding: 18px; }
   .flow, .branches { grid-template-columns: 1fr; gap: 26px; }
   .flow .step + .step::before { display: block; left: 50%; top: -22px; width: 2px; height: 16px; }
   .flow .step + .step::after { display: block; left: calc(50% - 4px); top: -9px; border: 5px solid transparent; border-top: 6px solid var(--g); border-left-color: transparent; }
   .lane.off .step + .step::after { border-top-color: var(--g3); border-left-color: transparent; }
 }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
+"""
+
+SCRIPT = r"""/* Editorial chart helpers (plain SVG/HTML, no libraries). */
+(function () {
+  const G = '#1D3F04', G3 = '#92998E', GL = '#C9D2BE', RULE = '#DDD8CE', SOFT = '#ECE8DF', MUTED = '#6B6862', INK = '#111111';
+  const LABEL = {
+    LAYING: 'Laying', SITTING: 'Sitting', STANDING: 'Standing', WALKING: 'Walking',
+    WALKING_DOWNSTAIRS: 'Walking downstairs', WALKING_UPSTAIRS: 'Walking upstairs'
+  };
+  const SHORT = { LAYING: 'Laying', SITTING: 'Sitting', STANDING: 'Standing', WALKING: 'Walking', WALKING_DOWNSTAIRS: 'Downstairs', WALKING_UPSTAIRS: 'Upstairs' };
+  const TINY = { LAYING: 'Lay', SITTING: 'Sit', STANDING: 'Stand', WALKING: 'Walk', WALKING_DOWNSTAIRS: 'Down', WALKING_UPSTAIRS: 'Up' };
+  const DYNAMIC = new Set(['WALKING', 'WALKING_DOWNSTAIRS', 'WALKING_UPSTAIRS']);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const MONO = 'font-family="JetBrains Mono, monospace"';
+
+  // Illustrative waveform (clearly labelled as not dataset output in the page)
+  function wave(el) {
+    let g = '';
+    for (let i = 0; i <= 4; i++) g += `<line x1="8" y1="${30 + i * 40}" x2="584" y2="${30 + i * 40}" stroke="${SOFT}"/>`;
+    g += `<rect x="8" y="10" width="288" height="200" fill="${G}" fill-opacity=".06"/>`;
+    [[G, 2], [G3, 1.5], [GL, 1.5]].forEach(([c, w], k) => {
+      let d = '';
+      for (let i = 0; i <= 128; i++) {
+        const x = 8 + i * 4.5, y = 110 + Math.sin(i * 0.19 + k * 1.3) * (48 - k * 12) + Math.sin(i * 0.61 + k) * (10 + k * 3) - k * 6;
+        d += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+      }
+      g = g + `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}"/>`;
+    });
+    el.innerHTML = g;
+  }
+
+  function curves(el, hist, best) {
+    const tr = hist.accuracy, va = hist.val_accuracy, n = tr.length;
+    const L = 52, R = 1170, T = 16, B = 240;
+    const lo = Math.floor(Math.min(...tr, ...va) * 20) / 20, hi = 1;
+    const X = (i) => L + i * (R - L) / (n - 1), Y = (v) => B - (v - lo) / (hi - lo) * (B - T);
+    let g = '';
+    for (let v = Math.ceil(lo * 20) / 20; v <= hi + 1e-9; v += 0.05)
+      g += `<line x1="${L}" x2="${R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${SOFT}"/><text x="${L - 10}" y="${Y(v) + 4}" fill="${MUTED}" font-size="11" ${MONO} text-anchor="end">${Math.round(v * 100)}%</text>`;
+    const step = Math.max(1, Math.round(n / 10));
+    for (let i = 0; i < n; i += step) g += `<text x="${X(i)}" y="${B + 22}" fill="${MUTED}" font-size="11" ${MONO} text-anchor="middle">${i + 1}</text>`;
+    g += `<text x="${R}" y="${B + 38}" fill="${MUTED}" font-size="10" ${MONO} text-anchor="end">EPOCH</text>`;
+    const path = (a) => a.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1)).join(' ');
+    if (best) g += `<line x1="${X(best - 1)}" x2="${X(best - 1)}" y1="${T}" y2="${B}" stroke="${INK}" stroke-dasharray="4 4" stroke-opacity=".5"/>`;
+    g += `<path d="${path(tr)}" fill="none" stroke="${G3}" stroke-width="2"/><path d="${path(va)}" fill="none" stroke="${G}" stroke-width="2.4"/>`;
+    if (best) {
+      const vb = va[best - 1], x = X(best - 1), y = Y(vb), bx = Math.min(Math.max(x, L + 90), R - 90);
+      g += `<circle cx="${x}" cy="${y}" r="5" fill="#fff" stroke="${G}" stroke-width="2.5"/>
+        <rect x="${bx - 86}" y="${y + 14}" width="172" height="28" rx="4" fill="${G}"/>
+        <text x="${bx}" y="${y + 32}" fill="#fff" font-size="11.5" ${MONO} text-anchor="middle">BEST · EPOCH ${best} · ${(vb * 100).toFixed(1)}%</text>`;
+    }
+    el.innerHTML = g;
+  }
+
+  function confusion(el, classes, cm) {
+    let h = '<div></div>' + classes.map((c) => `<div class="h">${TINY[c]}</div>`).join('');
+    let worst = { v: 0 };
+    cm.forEach((row, i) => row.forEach((v, j) => { if (i !== j && v > worst.v) worst = { v, i, j }; }));
+    cm.forEach((row, i) => {
+      h += `<div class="rl">${SHORT[classes[i]]}</div>`;
+      row.forEach((v, j) => {
+        let cls = 'c', style = '';
+        if (i === j) cls += ' d';
+        else if (i === worst.i && j === worst.j) cls += ' w';
+        else if (!v) cls += ' z';
+        else { const p = Math.min(1, 0.25 + v / 110); style = `background:rgb(${[246, 244, 239].map((a, k) => Math.round(a + ([122, 122, 114][k] - a) * p)).join(',')});${p > 0.7 ? 'color:#fff' : ''}`; }
+        h += `<div class="${cls}" style="${style}" role="cell" title="True ${SHORT[classes[i]]}, predicted ${SHORT[classes[j]]}: ${v}">${v}</div>`;
+      });
+    });
+    el.innerHTML = h;
+    return worst;
+  }
+
+  // rows: [{label, value, text, muted}] with value in 0..1
+  function bars(el, rows, cls = '') {
+    el.innerHTML = rows.map((r) => `<div class="bar ${r.top ? 'top' : ''} ${cls}"><span>${esc(r.label)}</span><span class="t"><i class="${r.muted ? 'm' : ''}" style="width:${Math.max(0.6, r.value * 100)}%"></i></span><b>${esc(r.text)}</b></div>`).join('');
+  }
+
+  function spark(el, series, ref) {
+    const W = 400, H = 64, lo = 0.6, Y = (v) => H - 4 - (Math.max(lo, v) - lo) / (1 - lo) * (H - 8);
+    let g = `<line x1="0" x2="${W}" y1="${Y(ref)}" y2="${Y(ref)}" stroke="${RULE}" stroke-dasharray="4 4"/>`;
+    if (series.length > 1) {
+      const d = series.map((v, i) => (i ? 'L' : 'M') + (i * W / (series.length - 1)).toFixed(1) + ' ' + Y(v).toFixed(1)).join(' ');
+      g += `<path d="${d}" fill="none" stroke="${G}" stroke-width="1.8" vector-effect="non-scaling-stroke"/>`;
+    }
+    el.innerHTML = g;
+  }
+
+  window.Charts = { wave, curves, confusion, bars, spark, LABEL, SHORT, DYNAMIC, esc };
+})();
+
+/* HAR Monitor page logic (editorial redesign). */
+(function () {
+  const { LABEL, SHORT, DYNAMIC, esc } = window.Charts;
+
+  // ------------------------------------------------------------------ config
+  const CONFIG = {
+    streamEveryMs: 2560,      // one 2.56 s window at a time, like the real sensor (at 1×)
+    timelineLength: 60,       // windows kept in the timeline strip
+    logLength: 8,             // rows kept in the event log
+    uploadChunkRows: 250,     // rows per /api/predict/batch request (stays < 4.5 MB)
+    lowConfidence: 0.7,
+    // CNN results come from the project report (not served by the API).
+    cnn: { acc: 0.891, f1: 0.890, size: '53,222 params' },
+    // Example responses per activity. Replace with your line's real rules.
+    responses: {
+      LAYING: 'Possible fall: alert supervisor, stop nearby machines.',
+      SITTING: 'Operator seated at station: normal operation.',
+      STANDING: 'Operator standing at station: normal operation.',
+      WALKING: 'Operator moving: keep robot cell at reduced speed.',
+      WALKING_UPSTAIRS: 'Operator on stairs: pause forklift lane below.',
+      WALKING_DOWNSTAIRS: 'Operator on stairs: pause forklift lane below.'
+    },
+    shortResponses: {
+      LAYING: 'Alert supervisor', SITTING: 'No action', STANDING: 'No action', WALKING: 'Slow robot cell',
+      WALKING_UPSTAIRS: 'Pause forklift lane', WALKING_DOWNSTAIRS: 'Pause forklift lane'
+    }
+  };
+
+  const $ = (s, el = document) => el.querySelector(s);
+  const setK = (k, v) => document.querySelectorAll(`[data-k="${k}"]`).forEach((e) => (e.textContent = v));
+  const pct = (v, d = 1) => (v * 100).toFixed(d) + '%';
+  // fetch with timeout + retries (network errors and 5xx are retried, 4xx are not)
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function api(path, opts = {}, { timeout = 10000, retries = 2 } = {}) {
+    let lastErr;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), timeout);
+      try {
+        const r = await fetch(path, { ...opts, signal: ctrl.signal });
+        clearTimeout(t);
+        if (r.ok) return await r.json();
+        let msg = r.status + ' ' + r.statusText;
+        try { const j = await r.json(); if (j && j.detail) msg = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail); } catch (_) {}
+        const err = new Error(msg); err.status = r.status;
+        if (r.status < 500 && r.status !== 429) throw err;        // client error: do not retry
+        lastErr = err;
+      } catch (e) {
+        clearTimeout(t);
+        if (e.status && e.status < 500 && e.status !== 429) throw e;
+        lastErr = e.name === 'AbortError' ? new Error('Request timed out') : e;
+      }
+      if (attempt < retries) await sleep(600 * 2 ** attempt);
+    }
+    throw lastErr;
+  }
+
+  let CLASSES = Object.keys(LABEL);
+  let TEST_ACC = 0.935;
+  Charts.wave($('#wave'));
+
+  // ---------------------------------------------------------------- health
+  api('/api/health').then((h) => {
+    $('#api-dot').className = 'dot ok';
+    $('#api-text').textContent = 'FastAPI /predict · online';
+    CLASSES = h.classes;
+  }).catch((e) => {
+    $('#api-dot').className = 'dot bad';
+    $('#api-text').textContent = e.status === 503 ? 'API degraded' : 'API offline';
+  });
+
+  // ---------------------------------------------------------------- metrics
+  api('/api/metrics').then((m) => {
+    CLASSES = m.classes;
+    const d = m.dataset, k = m.keras, rf = m.random_forest;
+    TEST_ACC = k.test_accuracy;
+    setK('acc', pct(k.test_accuracy));
+    setK('acc_s', rf ? `Keras Dense v1. Random Forest scores ${pct(rf.test_accuracy)} on the same split.` : 'Keras Dense v1 on held-out subjects.');
+    setK('test', d.test_windows.toLocaleString('en-US'));
+    setK('test_s', `From ${d.test_subjects} subjects the model never saw during training.`);
+    setK('val', pct(k.val_accuracy));
+    setK('val_s', k.best_epoch ? `Epoch ${k.best_epoch}, subject-wise validation. Early stopping restored this epoch.` : 'Subject-wise validation.');
+    setK('feat', d.features);
+
+    // model table
+    const rows = [
+      { name: 'Keras Dense v1', acc: k.test_accuracy, f1: k.macro_f1, size: k.params.toLocaleString('en-US') + ' params', tag: 'Deployed', cls: 'best' },
+      rf && { name: 'Random Forest', acc: rf.test_accuracy, f1: rf.macro_f1, size: '300 trees', tag: 'Baseline', cls: 'mid' },
+      { name: '1D CNN', acc: (m.cnn || {}).test_accuracy || CONFIG.cnn.acc, f1: (m.cnn || {}).macro_f1 || CONFIG.cnn.f1,
+        size: m.cnn && m.cnn.params ? m.cnn.params.toLocaleString('en-US') + ' params' : CONFIG.cnn.size, tag: 'Compared', cls: '' }
+    ].filter(Boolean);
+    $('#models').innerHTML = rows.map((r) => `<tr class="${r.cls}"><td>${r.name}</td>
+      <td><div class="acc"><span class="track"><i style="width:${Math.max(3, (r.acc * 100 - 85) / 10 * 100)}%"></i></span><b>${pct(r.acc)}</b></div></td>
+      <td class="num">${r.f1.toFixed(3)}</td><td class="note">${r.size}</td>
+      <td><span class="chip ${r.cls === 'best' ? 'solid' : ''}">${r.tag}</span></td></tr>`).join('');
+
+    if (k.history) {
+      Charts.curves($('#curve'), k.history, k.best_epoch);
+      $('#curve-sub').textContent = `Subject-wise validation · early stopping restored epoch ${k.best_epoch}`;
+    }
+
+    const worst = Charts.confusion($('#cm'), m.classes, k.confusion);
+    $('#cm-lab').textContent = `Section 03 · Confusion matrix · Keras Dense v1 · ${d.test_windows.toLocaleString('en-US')} test windows`;
+    if (worst.v) {
+      $('#worst-n').textContent = worst.v;
+      $('#worst-t').textContent = `${SHORT[m.classes[worst.i]].toLowerCase()} windows were read as ${SHORT[m.classes[worst.j]].toLowerCase()}. A waist-worn phone sees almost the same posture in both; neither is a safety risk.`;
+    }
+    Charts.bars($('#f1'), m.classes.map((c, i) => ({ label: SHORT[c], value: k.f1[i], text: k.f1[i].toFixed(3), muted: k.f1[i] < 0.9 })));
+
+    const order = m.classes.map((c, i) => i).sort((a, b) => d.train_counts[b] - d.train_counts[a]);
+    const mx = Math.max(...d.train_counts);
+    Charts.bars($('#dist'), order.map((i) => ({ label: SHORT[m.classes[i]], value: d.train_counts[i] / mx, text: d.train_counts[i].toLocaleString('en-US'), muted: !DYNAMIC.has(m.classes[i]) })));
+  }).catch((e) => {
+    console.error('metrics', e);
+    ['#models', '#f1', '#dist'].forEach((id) => {
+      const el = $(id);
+      if (el) el.innerHTML = (id === '#models' ? '<tr><td colspan="5" class="note">' : '<p class="note">') +
+        'Could not load results from the API (' + esc(e.message) + '). Refresh the page to try again.' + (id === '#models' ? '</td></tr>' : '</p>');
+    });
+  });
+
+  // ------------------------------------------------------------------ live
+  const tl = [], log = [], accSeries = [];
+  let seen = 0, correct = 0, latSum = 0, okN = 0, revN = 0, timer = null, paused = false, speed = 1;
+  const strip = $('#tl');
+  strip.innerHTML = Array.from({ length: CONFIG.timelineLength }, () => '<div class="empty"></div>').join('');
+
+  function showWindow(w, latency) {
+    seen += 1; correct += w.correct ? 1 : 0; latSum += latency;
+    w.low_confidence ? revN++ : okN++;
+    accSeries.push(correct / seen);
+    if (accSeries.length > 120) accSeries.shift();
+
+    $('#cur-lab').textContent = `Current window · Subject ${w.subject} · #${seen.toLocaleString('en-US')}`;
+    const words = LABEL[w.activity].split(' ');
+    $('#pred').innerHTML = words.length > 1 ? `${esc(words[0])}<br><em>${esc(words.slice(1).join(' '))}</em>` : `<em>${esc(words[0])}</em>`;
+    $('#conf').textContent = pct(w.confidence, 0);
+    const probs = Object.entries(w.probabilities).sort((a, b) => b[1] - a[1]);
+    Charts.bars($('#probs'), probs.map(([c, p], i) => ({ label: LABEL[c], value: p, text: p.toFixed(2), top: i === 0 })));
+    $('#truth').innerHTML = `<span class="lab">True activity</span><b>${esc(LABEL[w.true_activity])}</b>` +
+      (w.correct ? '<span class="chip solid">✓ correct</span>' : '<span class="chip ink">✗ misclassified</span>');
+    const resp = $('#resp');
+    if (w.low_confidence) {
+      resp.className = 'resp warn';
+      $('#resp-t').textContent = `Low confidence (${pct(w.confidence, 0)}): sent to a supervisor, no machine action.`;
+    } else {
+      resp.className = 'resp';
+      $('#resp-t').textContent = CONFIG.responses[w.activity] || '';
+    }
+    $('#subj-chip').textContent = `Subject ${w.subject}`;
+    $('#win-chip').textContent = `Window ${seen.toLocaleString('en-US')}`;
+
+    $('#sacc').textContent = pct(correct / seen);
+    $('#sacc-n').textContent = `of ${seen.toLocaleString('en-US')} window${seen === 1 ? '' : 's'}`;
+    Charts.spark($('#spark'), accSeries, TEST_ACC);
+    $('#spark-note').textContent = `Dashed line: ${pct(TEST_ACC)} full test-set accuracy (Keras Dense v1).`;
+    $('#g-ok').textContent = okN; $('#g-rev').textContent = revN;
+
+    tl.push({ n: seen, w });
+    if (tl.length > CONFIG.timelineLength) tl.shift();
+    const pad = CONFIG.timelineLength - tl.length;
+    strip.innerHTML = '<div class="empty"></div>'.repeat(pad) + tl.map(({ w: t }) =>
+      `<div class="${DYNAMIC.has(t.activity) ? 'dy' : ''} ${t.correct ? '' : 'x'} ${t.low_confidence ? 'lc' : ''}" title="${LABEL[t.activity]} · ${pct(t.confidence, 0)}${t.correct ? '' : ' · true: ' + LABEL[t.true_activity]}"></div>`).join('');
+    $('#tl-n').textContent = CONFIG.timelineLength;
+    $('#tl-a').textContent = '#' + tl[0].n.toLocaleString('en-US');
+    $('#tl-b').textContent = 'Now · #' + seen.toLocaleString('en-US');
+
+    const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+    log.unshift({ time, n: seen, w });
+    if (log.length > CONFIG.logLength) log.pop();
+    $('#log').innerHTML = log.map(({ time, n, w: x }) => `<tr><td>${time}</td><td>#${n.toLocaleString('en-US')}</td>
+      <td>${esc(LABEL[x.activity])}</td><td class="${x.correct ? 'dim' : 'hi'}">${esc(LABEL[x.true_activity])}</td>
+      <td class="${x.low_confidence ? '' : 'g'}">${x.confidence.toFixed(2)}</td>
+      <td>${x.low_confidence ? '<span class="chip">Sent to review</span>' : esc(CONFIG.shortResponses[x.activity] || '')}</td></tr>`).join('');
+    $('#lat').textContent = (latSum / seen).toFixed(2) + ' ms';
+  }
+
+  let fails = 0, busy = false;
+  async function tick() {
+    if (busy) return;                       // never overlap requests on slow networks
+    busy = true;
+    try {
+      const r = await api('/api/stream?n=1', {}, { timeout: 8000, retries: 1 });
+      fails = 0;
+      if (r && r.windows && r.windows.length) showWindow(r.windows[0], r.latency_ms || 0);
+    } catch (e) {
+      fails += 1;
+      $('#resp').className = 'resp warn';
+      if (fails >= 3) {
+        stop(); paused = true;
+        toggle.innerHTML = '▶&nbsp; Reconnect';
+        toggle.setAttribute('aria-pressed', 'true');
+        $('#resp-t').textContent = 'The stream is paused because the API did not respond (' + e.message + '). Press Reconnect to try again.';
+      } else {
+        $('#resp-t').textContent = 'Connection problem (' + e.message + '); retrying…';
+      }
+    } finally {
+      busy = false;
+    }
+  }
+  const interval = () => CONFIG.streamEveryMs / speed;
+  function start() { stop(); tick(); timer = setInterval(tick, interval()); }
+  function stop() { clearInterval(timer); timer = null; }
+
+  const toggle = $('#live-toggle');
+  toggle.addEventListener('click', () => {
+    paused = !paused;
+    if (!paused) fails = 0;
+    toggle.innerHTML = paused ? '▶&nbsp; Resume stream' : '❚❚&nbsp; Pause stream';
+    toggle.setAttribute('aria-pressed', String(paused));
+    paused ? stop() : start();
+  });
+  $('#live-next').addEventListener('click', () => tick());
+  document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.seg button').forEach((x) => x.classList.toggle('on', x === b));
+    speed = Number(b.dataset.speed);
+    if (!paused) start();
+  }));
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stop(); else if (!paused && !timer) start();
+  });
+  start();
+
+  // ------------------------------------------------------------- nav spy
+  const links = [...document.querySelectorAll('.links a[data-sec]')];
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((en) => {
+      if (en.isIntersecting) links.forEach((l) => l.classList.toggle('on', l.dataset.sec === en.target.id));
+    });
+  }, { rootMargin: '-35% 0px -60% 0px' });
+  links.forEach((l) => { const el = document.getElementById(l.dataset.sec); if (el) io.observe(el); });
+  links[0].classList.add('on');
+
+  // ------------------------------------------------------------- upload
+  function splitCSVLine(line) {
+    const out = []; let cur = '', q = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (q) {
+        if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+        else if (ch === '"') q = false;
+        else cur += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === ',') { out.push(cur); cur = ''; }
+      else cur += ch;
+    }
+    out.push(cur);
+    return out;
+  }
+
+  function parseCSV(text) {
+    const lines = text.split(/\r?\n/).filter((l) => l.trim().length);
+    if (!lines.length) throw new Error('The file is empty.');
+    const first = splitCSVLine(lines[0]);
+    const hasHeader = first.some((v) => v.trim() !== '' && isNaN(Number(v)));
+    let featIdx, labelIdx = -1;
+    if (hasHeader) {
+      const names = first.map((s) => s.trim());
+      labelIdx = names.findIndex((n) => n.toLowerCase() === 'activity');
+      featIdx = names.map((n, i) => i).filter((i) => i !== labelIdx && names[i].toLowerCase() !== 'subject');
+    } else {
+      featIdx = first.map((_, i) => i).slice(0, 561);
+    }
+    if (featIdx.length !== 561) throw new Error(`Expected 561 feature columns, found ${featIdx.length}.`);
+    const rows = [], labels = [];
+    for (let r = hasHeader ? 1 : 0; r < lines.length; r++) {
+      const cells = lines[r].split(',');
+      const row = featIdx.map((i) => Math.round(Number(cells[i]) * 1e6) / 1e6);
+      if (row.some((v) => !Number.isFinite(v))) throw new Error(`Row ${r + 1} has a missing or non-numeric value.`);
+      rows.push(row);
+      if (labelIdx >= 0) labels.push((cells[labelIdx] || '').replace(/"/g, '').trim());
+    }
+    return { rows, labels: labelIdx >= 0 ? labels : null };
+  }
+
+  function toCSV(preds, conf, labels) {
+    const head = labels ? 'row,predicted,confidence,true_activity,correct' : 'row,predicted,confidence';
+    const body = preds.map((p, i) => labels ? `${i + 1},${p},${conf[i]},${labels[i]},${p === labels[i]}` : `${i + 1},${p},${conf[i]}`);
+    return [head, ...body].join('\n');
+  }
+
+  async function handleFile(file) {
+    const res = $('#res');
+    if (!file) return;
+    res.innerHTML = `<p class="lab">${esc(file.name)} · ${(file.size / 1e6).toFixed(2)} MB</p><div class="prog"><i id="pbar"></i></div><p class="note" id="pstat">Reading file…</p>`;
+    try {
+      const { rows, labels } = parseCSV(await file.text());
+      const preds = [], conf = [];
+      let ms = 0;
+      for (let i = 0; i < rows.length; i += CONFIG.uploadChunkRows) {
+        const chunk = rows.slice(i, i + CONFIG.uploadChunkRows);
+        const r = await api('/api/predict/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: chunk }) });
+        preds.push(...r.predictions); conf.push(...r.confidence); ms += r.latency_ms;
+        $('#pbar').style.width = pct(Math.min(1, (i + chunk.length) / rows.length));
+        $('#pstat').textContent = `Classified ${preds.length.toLocaleString('en-US')} of ${rows.length.toLocaleString('en-US')} rows…`;
+      }
+      const counts = {}; CLASSES.forEach((c) => (counts[c] = 0));
+      preds.forEach((p) => (counts[p] = (counts[p] || 0) + 1));
+      const acc = labels ? preds.filter((p, i) => p === labels[i]).length / preds.length : null;
+      const low = conf.filter((c) => c < CONFIG.lowConfidence).length;
+      const mx = Math.max(...Object.values(counts));
+      const url = URL.createObjectURL(new Blob([toCSV(preds, conf, labels)], { type: 'text/csv' }));
+      res.innerHTML = `
+        <p class="lab">${esc(file.name)} · done</p>
+        <div class="rstats">
+          <div><span class="lab">Rows</span><b>${preds.length.toLocaleString('en-US')}</b></div>
+          <div><span class="lab">${labels ? 'Accuracy' : 'Avg confidence'}</span><b class="g">${labels ? pct(acc) : pct(conf.reduce((a, b) => a + b, 0) / conf.length)}</b></div>
+          <div><span class="lab">Low confidence</span><b>${low.toLocaleString('en-US')}</b></div>
+        </div>
+        <div class="bars" id="rbars"></div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+          <a class="btn primary" href="${url}" download="${esc(file.name.replace(/\.csv$/i, ''))}_predictions.csv">Download predictions CSV</a>
+          <span class="note">Server inference: ${ms.toFixed(1)} ms total</span>
+        </div>`;
+      Charts.bars($('#rbars'), CLASSES.map((c) => ({ label: SHORT[c], value: counts[c] / mx, text: String(counts[c]), muted: !DYNAMIC.has(c) })));
+    } catch (e) {
+      res.innerHTML = `<p class="err">Could not process the file: ${esc(e.message)}</p>`;
+    }
+  }
+
+  const drop = $('#drop'), input = $('#csv');
+  input.addEventListener('change', () => handleFile(input.files[0]));
+  ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => handleFile(e.dataTransfer.files[0]));
+})();
 """
 
 TEMPLATE = r"""<!doctype html>
@@ -173,9 +819,8 @@ TEMPLATE = r"""<!doctype html>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/style.css">
 <style>
-{{EXTRA_CSS}}</style>
+{{STYLE}}</style>
 </head>
 <body>
 
@@ -400,8 +1045,8 @@ TEMPLATE = r"""<!doctype html>
   </div>
 </footer>
 
-<script src="/js/charts.js"></script>
-<script src="/js/app.js"></script>
+<script>
+{{SCRIPT}}</script>
 </body>
 </html>
 """
