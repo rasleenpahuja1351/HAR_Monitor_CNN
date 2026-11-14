@@ -307,6 +307,13 @@ def api_not_found(path: str):
     raise HTTPException(status_code=404, detail=f"Unknown API route: /api/{path}")
 
 
+# Pipeline & live prediction page, generated in Python (live_page.py) and served at /live
+from live_page import create_router  # noqa: E402
+
+app.include_router(create_router(get_model, get_samples, get_metrics, describe,
+                                 threshold=LOW_CONFIDENCE, group=GROUP_ID))
+
+
 # Website. On Vercel the public/ files are served by the CDN and are not inside
 # the function, so mount them only when the folder exists (local development).
 if PUBLIC_DIR.is_dir():
