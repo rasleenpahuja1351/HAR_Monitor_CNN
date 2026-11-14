@@ -853,7 +853,7 @@ TEMPLATE = r"""<!doctype html>
   <!-- HERO -->
   <section class="sec hero" id="overview">
     <div class="wrap">
-      <p class="lab">UCI HAR · Benchmark overview</p>
+      <p class="lab">Project 8 · Human Activity Recognition for Factory Automation</p>
       <h1 class="display">Human Activity<br>Recognition for<br>the <em>factory floor</em></h1>
       <p class="lede">Accelerometer and gyroscope signals (50 Hz, 2.56 s windows) are turned into 561 features, classified into 6 activities by a Keras network, and served through FastAPI to drive line-safety responses.</p>
       <div class="pipe">
