@@ -3,13 +3,7 @@
   "functions": {
     "app.py": {
       "maxDuration": 30,
-      "excludeFiles": "{checkpoints/**,data/**,results/**,report/**,tests/**,configs/**,run_experiments.py,predict.py,src/train.py,src/models.py,src/evaluate.py,src/export_model.py,src/data.py,src/config.py,**/*.csv,**/*.keras,**/*.joblib,**/*.md,**/*.txt,**/__pycache__/**}"
+      "excludeFiles": "{checkpoints/**,data/**,results/**,report/**,tests/**,**/*.csv,**/*.keras,**/*.joblib,**/__pycache__/**}"
     }
-  },
-  "headers": [
-    {
-      "source": "/(css|js)/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
-    }
-  ]
+  }
 }
